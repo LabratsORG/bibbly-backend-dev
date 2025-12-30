@@ -7,6 +7,7 @@ const AppConfig = require('../models/AppConfig');
 const User = require('../models/User');
 const Profile = require('../models/Profile');
 const Report = require('../models/Report');
+const Block = require('../models/Block');
 const MessageRequest = require('../models/MessageRequest');
 const Conversation = require('../models/Conversation');
 const Feedback = require('../models/Feedback');
@@ -814,6 +815,189 @@ const getActivityLogs = async (req, res) => {
   }
 };
 
+// ==================== BLOCKS MANAGEMENT ====================
+
+/**
+ * @desc    Get all blocks with filters
+ * @route   GET /api/v1/admin/blocks
+ * @access  Admin
+ */
+const getBlocks = async (req, res) => {
+  try {
+    const { reason, source, search, page = 1, limit = 50 } = req.query;
+    
+    const query = {};
+    if (reason) query.reason = reason;
+    if (source) query.source = source;
+    
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    
+    let blocks = await Block.find(query)
+      .populate({
+        path: 'blocker',
+        select: 'username email',
+        populate: { path: 'profile', select: 'name photos' }
+      })
+      .populate({
+        path: 'blocked',
+        select: 'username email',
+        populate: { path: 'profile', select: 'name photos' }
+      })
+      .sort({ createdAt: -1 })
+      .limit(parseInt(limit))
+      .skip(skip);
+    
+    // Filter by search if provided
+    if (search) {
+      const searchLower = search.toLowerCase();
+      blocks = blocks.filter(block => 
+        block.blocker?.username?.toLowerCase().includes(searchLower) ||
+        block.blocker?.email?.toLowerCase().includes(searchLower) ||
+        block.blocked?.username?.toLowerCase().includes(searchLower) ||
+        block.blocked?.email?.toLowerCase().includes(searchLower)
+      );
+    }
+    
+    const total = await Block.countDocuments(query);
+    
+    return ApiResponse.paginated(res, blocks, {
+      page: parseInt(page),
+      limit: parseInt(limit),
+      total
+    });
+  } catch (error) {
+    logger.error('Get blocks error:', error);
+    return ApiResponse.error(res, 'Error fetching blocks');
+  }
+};
+
+/**
+ * @desc    Get block details
+ * @route   GET /api/v1/admin/blocks/:blockId
+ * @access  Admin
+ */
+const getBlockDetails = async (req, res) => {
+  try {
+    const { blockId } = req.params;
+    
+    const block = await Block.findById(blockId)
+      .populate({
+        path: 'blocker',
+        select: 'username email accountStatus createdAt',
+        populate: { path: 'profile', select: 'name photos location' }
+      })
+      .populate({
+        path: 'blocked',
+        select: 'username email accountStatus createdAt',
+        populate: { path: 'profile', select: 'name photos location' }
+      });
+    
+    if (!block) {
+      return ApiResponse.notFound(res, 'Block not found');
+    }
+    
+    return ApiResponse.success(res, { block });
+  } catch (error) {
+    logger.error('Get block details error:', error);
+    return ApiResponse.error(res, 'Error fetching block details');
+  }
+};
+
+/**
+ * @desc    Remove a block (admin override)
+ * @route   DELETE /api/v1/admin/blocks/:blockId
+ * @access  Admin
+ */
+const removeBlock = async (req, res) => {
+  try {
+    const { blockId } = req.params;
+    const { reason } = req.body;
+    
+    const block = await Block.findById(blockId);
+    
+    if (!block) {
+      return ApiResponse.notFound(res, 'Block not found');
+    }
+    
+    await Block.findByIdAndDelete(blockId);
+    
+    // Log activity
+    await ActivityLog.log({
+      actor: req.userId,
+      actorType: 'admin',
+      action: 'block_removed',
+      entityType: 'block',
+      entityId: blockId,
+      details: { 
+        blocker: block.blocker,
+        blocked: block.blocked,
+        adminReason: reason 
+      },
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent')
+    });
+    
+    logger.info(`Block ${blockId} removed by admin ${req.userId}`);
+    
+    return ApiResponse.success(res, { message: 'Block removed successfully' });
+  } catch (error) {
+    logger.error('Remove block error:', error);
+    return ApiResponse.error(res, 'Error removing block');
+  }
+};
+
+/**
+ * @desc    Get block statistics
+ * @route   GET /api/v1/admin/blocks/stats
+ * @access  Admin
+ */
+const getBlockStats = async (req, res) => {
+  try {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const last7Days = new Date(today);
+    last7Days.setDate(last7Days.getDate() - 7);
+    
+    const [
+      totalBlocks,
+      blocksToday,
+      blocksLast7Days,
+      blocksByReason,
+      blocksBySource
+    ] = await Promise.all([
+      Block.countDocuments(),
+      Block.countDocuments({ createdAt: { $gte: today } }),
+      Block.countDocuments({ createdAt: { $gte: last7Days } }),
+      Block.aggregate([
+        { $group: { _id: '$reason', count: { $sum: 1 } } }
+      ]),
+      Block.aggregate([
+        { $group: { _id: '$source', count: { $sum: 1 } } }
+      ])
+    ]);
+    
+    return ApiResponse.success(res, {
+      stats: {
+        totalBlocks,
+        blocksToday,
+        blocksLast7Days,
+        byReason: blocksByReason.reduce((acc, item) => {
+          acc[item._id || 'not_specified'] = item.count;
+          return acc;
+        }, {}),
+        bySource: blocksBySource.reduce((acc, item) => {
+          acc[item._id || 'profile'] = item.count;
+          return acc;
+        }, {})
+      }
+    });
+  } catch (error) {
+    logger.error('Get block stats error:', error);
+    return ApiResponse.error(res, 'Error fetching block statistics');
+  }
+};
+
 module.exports = {
   // Config
   getAppConfig,
@@ -851,6 +1035,12 @@ module.exports = {
   getAnalytics,
   
   // Activity Logs
-  getActivityLogs
+  getActivityLogs,
+  
+  // Blocks Management
+  getBlocks,
+  getBlockDetails,
+  removeBlock,
+  getBlockStats
 };
 

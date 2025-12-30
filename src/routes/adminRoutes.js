@@ -41,7 +41,13 @@ const {
   getAnalytics,
   
   // Activity Logs
-  getActivityLogs
+  getActivityLogs,
+  
+  // Blocks Management
+  getBlocks,
+  getBlockDetails,
+  removeBlock,
+  getBlockStats
 } = require('../controllers/adminController');
 
 const { protect, requireAdmin } = require('../middleware/auth');
@@ -84,6 +90,12 @@ router.get('/feedback', getFeedback);
 router.get('/feedback/:feedbackId', getFeedbackDetails);
 router.put('/feedback/:feedbackId', updateFeedback);
 
+// ==================== BLOCKS MANAGEMENT ====================
+router.get('/blocks/stats', getBlockStats);
+router.get('/blocks', getBlocks);
+router.get('/blocks/:blockId', getBlockDetails);
+router.delete('/blocks/:blockId', removeBlock);
+
 // ==================== ANALYTICS ====================
 router.get('/analytics', getAnalytics);
 
@@ -91,4 +103,3 @@ router.get('/analytics', getAnalytics);
 router.get('/activity-logs', getActivityLogs);
 
 module.exports = router;
-
