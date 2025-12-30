@@ -17,10 +17,11 @@ services:
     ports:
       - "0.0.0.0:5001:5001"  # Bind to all interfaces for public access
     environment:
-      - NODE_ENV=production
+      - NODE_ENV=development
       - PORT=5001
       - API_VERSION=v1
-      - MONGODB_URI=mongodb://mongodb:27017/bibbly_dating
+      - MONGODB_URI=mongodb://${MONGO_ROOT_USER:-admin}:${MONGO_ROOT_PASSWORD:-change_this_password}@mongodb:27017/bibbly_dating?authSource=admin
+      - MONGODB_URI_PROD=mongodb://${MONGO_ROOT_USER:-admin}:${MONGO_ROOT_PASSWORD:-change_this_password}@mongodb:27017/bibbly_dating?authSource=admin
       - REDIS_URL=redis://redis:6379
     env_file:
       - .env
