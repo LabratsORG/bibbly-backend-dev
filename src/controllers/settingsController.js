@@ -32,7 +32,13 @@ const getSettings = async (req, res) => {
         visibility: profile?.visibility || 'discoverable',
         showInFeed: profile?.showInFeed ?? true,
         allowAnonymousMessages: profile?.allowAnonymousMessages ?? true,
-        photoBlurForAnonymous: profile?.photoBlurForAnonymous ?? true
+        photoBlurForAnonymous: profile?.photoBlurForAnonymous ?? true,
+        messagePreferences: profile?.messagePreferences || {
+          allowFrom: 'anyone',
+          sameCollege: false,
+          sameWorkplace: false,
+          sameLocation: false
+        }
       },
       notifications: user.notificationPreferences || {
         messageRequests: true,
@@ -65,7 +71,8 @@ const updatePrivacySettings = async (req, res) => {
       visibility,
       showInFeed,
       allowAnonymousMessages,
-      photoBlurForAnonymous
+      photoBlurForAnonymous,
+      messagePreferences
     } = req.body;
 
     const profile = await Profile.findOne({ user: req.userId });
@@ -78,6 +85,25 @@ const updatePrivacySettings = async (req, res) => {
     if (showInFeed !== undefined) profile.showInFeed = showInFeed;
     if (allowAnonymousMessages !== undefined) profile.allowAnonymousMessages = allowAnonymousMessages;
     if (photoBlurForAnonymous !== undefined) profile.photoBlurForAnonymous = photoBlurForAnonymous;
+    
+    // Update message preferences
+    if (messagePreferences !== undefined) {
+      if (!profile.messagePreferences) {
+        profile.messagePreferences = {};
+      }
+      if (messagePreferences.allowFrom !== undefined) {
+        profile.messagePreferences.allowFrom = messagePreferences.allowFrom;
+      }
+      if (messagePreferences.sameCollege !== undefined) {
+        profile.messagePreferences.sameCollege = messagePreferences.sameCollege;
+      }
+      if (messagePreferences.sameWorkplace !== undefined) {
+        profile.messagePreferences.sameWorkplace = messagePreferences.sameWorkplace;
+      }
+      if (messagePreferences.sameLocation !== undefined) {
+        profile.messagePreferences.sameLocation = messagePreferences.sameLocation;
+      }
+    }
 
     await profile.save();
 
@@ -86,7 +112,13 @@ const updatePrivacySettings = async (req, res) => {
         visibility: profile.visibility,
         showInFeed: profile.showInFeed,
         allowAnonymousMessages: profile.allowAnonymousMessages,
-        photoBlurForAnonymous: profile.photoBlurForAnonymous
+        photoBlurForAnonymous: profile.photoBlurForAnonymous,
+        messagePreferences: profile.messagePreferences || {
+          allowFrom: 'anyone',
+          sameCollege: false,
+          sameWorkplace: false,
+          sameLocation: false
+        }
       }
     }, 'Privacy settings updated');
 

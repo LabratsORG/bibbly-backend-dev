@@ -168,6 +168,27 @@ const profileSchema = new mongoose.Schema({
     type: Boolean,
     default: true
   },
+  // Message Preferences - who can send messages
+  messagePreferences: {
+    allowFrom: {
+      type: String,
+      enum: ['anyone', 'restricted'],
+      default: 'anyone'
+    },
+    // When allowFrom is 'restricted', these filters apply (OR logic - any match allows)
+    sameCollege: {
+      type: Boolean,
+      default: false
+    },
+    sameWorkplace: {
+      type: Boolean,
+      default: false
+    },
+    sameLocation: {
+      type: Boolean,
+      default: false
+    }
+  },
   
   // Profile Status
   isComplete: {

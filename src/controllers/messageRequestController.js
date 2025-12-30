@@ -79,6 +79,57 @@ const sendRequest = async (req, res) => {
       return ApiResponse.forbidden(res, 'This user does not accept anonymous messages');
     }
 
+    // Get sender's profile (needed for message preferences check and later for stats)
+    const senderProfile = await Profile.findOne({ user: senderId });
+
+    // Check message preferences (who can message this user)
+    const msgPrefs = recipientProfile.messagePreferences;
+    if (msgPrefs && msgPrefs.allowFrom === 'restricted') {
+      if (senderProfile) {
+        let canMessage = false;
+        const reasons = [];
+        
+        // Check same college
+        if (msgPrefs.sameCollege && senderProfile.college?.name && recipientProfile.college?.name) {
+          if (senderProfile.college.name.toLowerCase() === recipientProfile.college.name.toLowerCase()) {
+            canMessage = true;
+          }
+        }
+        
+        // Check same workplace
+        if (msgPrefs.sameWorkplace && senderProfile.workplace?.company && recipientProfile.workplace?.company) {
+          if (senderProfile.workplace.company.toLowerCase() === recipientProfile.workplace.company.toLowerCase()) {
+            canMessage = true;
+          }
+        }
+        
+        // Check same location (city)
+        if (msgPrefs.sameLocation && senderProfile.location?.city && recipientProfile.location?.city) {
+          if (senderProfile.location.city.toLowerCase() === recipientProfile.location.city.toLowerCase()) {
+            canMessage = true;
+          }
+        }
+        
+        // Build rejection message based on what's required
+        if (!canMessage) {
+          if (msgPrefs.sameCollege) reasons.push('same college');
+          if (msgPrefs.sameWorkplace) reasons.push('same workplace');
+          if (msgPrefs.sameLocation) reasons.push('same location');
+          
+          const reasonText = reasons.length > 0 
+            ? `This user only accepts messages from people with ${reasons.join(' or ')}.`
+            : 'This user has restricted who can message them.';
+          
+          return ApiResponse.forbidden(res, reasonText);
+        }
+      } else {
+        // Sender doesn't have a profile, check if any restrictions require profile info
+        if (msgPrefs.sameCollege || msgPrefs.sameWorkplace || msgPrefs.sameLocation) {
+          return ApiResponse.forbidden(res, 'Please complete your profile to message this user.');
+        }
+      }
+    }
+
     // Create request
     const request = await MessageRequest.create({
       sender: senderId,
@@ -90,7 +141,6 @@ const sendRequest = async (req, res) => {
     });
 
     // Update sender's profile stats
-    const senderProfile = await Profile.findOne({ user: senderId });
     if (senderProfile) {
       senderProfile.requestsSent += 1;
       await senderProfile.save({ validateBeforeSave: false });
