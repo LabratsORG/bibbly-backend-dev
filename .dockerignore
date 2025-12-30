@@ -1,0 +1,84 @@
+# ============================================
+# Docker Ignore File for bibbly Backend
+# ============================================
+
+# Dependencies (will be installed fresh in container)
+node_modules/
+npm-debug.log*
+yarn-error.log*
+yarn.lock
+
+# Environment files (use env_file in docker-compose)
+.env
+.env.*
+!.env.example
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# IDE & Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.editorconfig
+
+# OS Files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+logs/
+*.log
+
+# Test files & Coverage
+coverage/
+.nyc_output/
+*.test.js
+*.spec.js
+__tests__/
+test/
+jest.config.js
+
+# Build artifacts
+dist/
+build/
+*.map
+
+# Local uploads & temp
+uploads/
+temp/
+tmp/
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+.circleci/
+
+# Docker files (no need to copy these inside)
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+docker/
+
+# Documentation (except README)
+*.md
+!README.md
+docs/
+
+# Misc config files
+.eslintrc*
+.prettierrc*
+.npmrc
+tsconfig.json
+
+# Vercel (not needed for Docker)
+vercel.json
+
+# Keep the api folder for Vercel compatibility
+# !api/

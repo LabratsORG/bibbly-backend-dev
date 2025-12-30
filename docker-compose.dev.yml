@@ -1,0 +1,122 @@
+# ============================================
+# bibbly Backend - Docker Compose
+# Development Configuration
+# Usage: docker-compose -f docker-compose.dev.yml up
+# ============================================
+version: '3.8'
+
+services:
+  # ===========================================
+  # Backend API Service (Development)
+  # ===========================================
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: bibbly-backend-dev
+    ports:
+      - "5001:5001"
+      - "9229:9229"  # Node.js debugger port
+    environment:
+      - NODE_ENV=development
+      - PORT=5001
+      - API_VERSION=v1
+      - MONGODB_URI=mongodb://mongodb:27017/bibbly_dating
+      - REDIS_URL=redis://redis:6379
+    env_file:
+      - .env
+    volumes:
+      - ./src:/app/src:delegated
+      - ./api:/app/api:delegated
+      - ./package.json:/app/package.json
+      - /app/node_modules
+    networks:
+      - bibbly-network-dev
+    depends_on:
+      - mongodb
+      - redis
+    restart: unless-stopped
+    command: npm run dev
+
+  # ===========================================
+  # MongoDB Database (Development)
+  # ===========================================
+  mongodb:
+    image: mongo:7
+    container_name: bibbly-mongodb-dev
+    ports:
+      - "27017:27017"
+    environment:
+      - MONGO_INITDB_DATABASE=bibbly_dating
+    volumes:
+      - mongodb-data-dev:/data/db
+    networks:
+      - bibbly-network-dev
+    restart: unless-stopped
+
+  # ===========================================
+  # Redis Cache (Development)
+  # ===========================================
+  redis:
+    image: redis:7-alpine
+    container_name: bibbly-redis-dev
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data-dev:/data
+    networks:
+      - bibbly-network-dev
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+
+  # ===========================================
+  # Mongo Express (Database UI)
+  # ===========================================
+  mongo-express:
+    image: mongo-express:latest
+    container_name: bibbly-mongo-express
+    ports:
+      - "8081:8081"
+    environment:
+      - ME_CONFIG_MONGODB_SERVER=mongodb
+      - ME_CONFIG_MONGODB_PORT=27017
+      - ME_CONFIG_BASICAUTH_USERNAME=admin
+      - ME_CONFIG_BASICAUTH_PASSWORD=bibbly123
+    networks:
+      - bibbly-network-dev
+    depends_on:
+      - mongodb
+    restart: unless-stopped
+
+  # ===========================================
+  # Redis Commander (Redis UI)
+  # ===========================================
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: bibbly-redis-commander
+    ports:
+      - "8082:8081"
+    environment:
+      - REDIS_HOSTS=local:redis:6379
+    networks:
+      - bibbly-network-dev
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+# ===========================================
+# Networks
+# ===========================================
+networks:
+  bibbly-network-dev:
+    driver: bridge
+
+# ===========================================
+# Volumes
+# ===========================================
+volumes:
+  mongodb-data-dev:
+    driver: local
+  redis-data-dev:
+    driver: local
+

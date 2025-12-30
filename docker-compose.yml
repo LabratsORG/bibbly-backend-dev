@@ -1,0 +1,146 @@
+# ============================================
+# bibbly Backend - Docker Compose
+# Production Configuration
+# ============================================
+version: '3.8'
+
+services:
+  # ===========================================
+  # Backend API Service
+  # ===========================================
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    image: bibbly/backend:latest
+    container_name: bibbly-backend
+    ports:
+      - "${PORT:-5001}:5001"
+    environment:
+      - NODE_ENV=production
+      - PORT=5001
+      - API_VERSION=v1
+      - MONGODB_URI=${MONGODB_URI:-mongodb://mongodb:27017/bibbly_dating}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379}
+    env_file:
+      - .env
+    restart: unless-stopped
+    networks:
+      - bibbly-network
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ===========================================
+  # MongoDB Database
+  # ===========================================
+  mongodb:
+    image: mongo:7
+    container_name: bibbly-mongodb
+    ports:
+      - "${MONGO_PORT:-27017}:27017"
+    environment:
+      - MONGO_INITDB_DATABASE=bibbly_dating
+      - MONGO_INITDB_ROOT_USERNAME=${MONGO_ROOT_USER:-admin}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_ROOT_PASSWORD:-bibbly_secure_pass}
+    volumes:
+      - mongodb-data:/data/db
+      - ./docker/mongo-init:/docker-entrypoint-initdb.d:ro
+    networks:
+      - bibbly-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.25'
+          memory: 512M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ===========================================
+  # Redis Cache
+  # ===========================================
+  redis:
+    image: redis:7-alpine
+    container_name: bibbly-redis
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - bibbly-network
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 128mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+# ===========================================
+# Networks
+# ===========================================
+networks:
+  bibbly-network:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.28.0.0/16
+
+# ===========================================
+# Volumes
+# ===========================================
+volumes:
+  mongodb-data:
+    driver: local
+  redis-data:
+    driver: local
